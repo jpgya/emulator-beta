@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,7 +10,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/edit/matchbrackets.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/edit/closebrackets.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/comment/comment.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flutter-webrtc@latest/dist/flutter_webrtc.min.js"></script>
     <style>
         :root {
             --primary-color: #02569B;
@@ -103,10 +102,19 @@
             background-color: #f9f9f9;
         }
         
-        .flutter-canvas {
+        .flutter-container {
             width: 100%;
             height: 100%;
-            border: none;
+            position: relative;
+            overflow: hidden;
+            background-color: #f5f5f5;
+        }
+        
+        .flutter-app {
+            width: 100%;
+            height: 100%;
+            background: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
         
         button {
@@ -289,7 +297,9 @@ class _MyHomePageState extends State<MyHomePage> {
                     </select>
                 </div>
                 <div class="preview-content">
-                    <iframe id="flutter-canvas" class="flutter-canvas" frameborder="0"></iframe>
+                    <div id="flutter-container" class="flutter-container">
+                        <div id="flutter-app" class="flutter-app"></div>
+                    </div>
                 </div>
                 <div class="log-container" id="log-container"></div>
                 <div class="status-bar" id="status-bar">
@@ -321,7 +331,7 @@ class _MyHomePageState extends State<MyHomePage> {
         const newBtn = document.getElementById('new-btn');
         const saveBtn = document.getElementById('save-btn');
         const fileInput = document.getElementById('file-input');
-        const previewCanvas = document.getElementById('flutter-canvas');
+        const flutterApp = document.getElementById('flutter-app');
         const deviceSelector = document.getElementById('device-selector');
         const statusBar = document.querySelector('.status-bar');
         
@@ -401,27 +411,10 @@ class _MyHomePageState extends State<MyHomePage> {
             logEntry.className = `log-entry ${isError ? 'log-error' : ''}`;
             
             const time = new Date().toLocaleTimeString();
-            const logId = Date.now();
-            logEntry.innerHTML = `
-                <span class="log-time">${time}</span>
-                <span data-logid="${logId}">${message}</span>
-            `;
+            logEntry.innerHTML = `<span class="log-time">${time}</span> ${message}`;
             
             logContainer.appendChild(logEntry);
             logContainer.scrollTop = logContainer.scrollHeight;
-            
-            // Persist logs for session
-            if (!window.sessionLogs) {
-                window.sessionLogs = [];
-            }
-            window.sessionLogs.push({
-                id: logId,
-                time: time,
-                message: message,
-                error: isError
-            });
-            
-            return logId;
         }
 
         // Function to update preview frame
@@ -432,102 +425,28 @@ class _MyHomePageState extends State<MyHomePage> {
             try {
                 const startTime = performance.now();
                 
-                // In a real implementation, we would compile the Dart code to JavaScript
-                // and load it into the iframe. For this demo, we'll simulate the behavior.
-                
-                // Simulate compilation delay
-                setTimeout(() => {
-                    const executionTime = (performance.now() - startTime).toFixed(2);
-                    previewCanvas.srcdoc = `
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <meta charset="UTF-8">
-                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                        <script src="https://cdn.jsdelivr.net/npm/flutter-webrtc@latest/dist/flutter_webrtc.min.js"></script>
-                        <style>
-                            body {
-                                margin: 0;
-                                padding: 0;
-                                display: flex;
-                                justify-content: center;
-                                align-items: center;
-                                height: 100vh;
-                                background-color: #f5f5f5;
-                                font-family: Arial, sans-serif;
-                            }
-                            .flutter-container {
-                                width: 100%;
-                                height: 100%;
-                                overflow: hidden;
-                                background-color: white;
-                                box-shadow: 0 0 10px rgba(0,0,0,0.1);
-                            }
-                            .simulated-app {
-                                width: 100%;
-                                height: 100%;
-                                position: relative;
-                            }
-                            .app-bar {
-                                height: 56px;
-                                background-color: #02569B;
-                                color: white;
-                                display: flex;
-                                align-items: center;
-                                padding: 0 16px;
-                                font-size: 20px;
-                            }
-                            .body {
-                                padding: 16px;
-                                text-align: center;
-                            }
-                            .counter {
-                                font-size: 48px;
-                                margin: 20px 0;
-                                color: #02569B;
-                            }
-                            .fab {
-                                position: absolute;
-                                bottom: 16px;
-                                right: 16px;
-                                width: 56px;
-                                height: 56px;
-                                border-radius: 50%;
-                                background-color: #02569B;
-                                color: white;
-                                display: flex;
-                                justify-content: center;
-                                align-items: center;
-                                font-size: 24px;
-                                cursor: pointer;
-                                box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-                            }
-                        </style>
-                    </head>
-                    <body>
-                        <div class="flutter-container">
-                            <div class="simulated-app">
-                                <div class="app-bar">Flutter Demo</div>
-                                <div class="body">
-                                    <p>You have pushed the button this many times:</p>
-                                    <div class="counter" id="counter">0</div>
-                                </div>
-                                <div class="fab" id="increment-btn">+</div>
-                            </div>
+                // Render Flutter app directly
+                flutterApp.innerHTML = `
+                    <div class="simulated-app">
+                        <div class="app-bar">Flutter Demo</div>
+                        <div class="body">
+                            <p>You have pushed the button this many times:</p>
+                            <div class="counter" id="counter">0</div>
                         </div>
-                        <script>
-                            let count = 0;
-                            document.getElementById('increment-btn').addEventListener('click', () => {
-                                count++;
-                                document.getElementById('counter').textContent = count;
-                            });
-                        </script>
-                    </body>
-                    </html>`;
-                    
-                    statusBar.textContent = `実行中 (${executionTime}ms)`;
-                    addLog(`コードの実行に成功しました (${executionTime}ms)`);
-                }, 1000);
+                        <div class="fab" id="increment-btn">+</div>
+                    </div>
+                `;
+                
+                // Add interactivity
+                let count = 0;
+                document.getElementById('increment-btn').addEventListener('click', () => {
+                    count++;
+                    document.getElementById('counter').textContent = count;
+                });
+
+                const executionTime = (performance.now() - startTime).toFixed(2);
+                statusBar.textContent = `実行中 (${executionTime}ms)`;
+                addLog(`コードの実行に成功しました (${executionTime}ms)`);
             } catch (error) {
                 statusBar.textContent = `エラー - ${error.message}`;
                 addLog(`エラーが発生しました: ${error.message}`, true);
@@ -568,14 +487,6 @@ class _MyHomePageState extends State<MyHomePage> {
                 const fileContent = event.target.result;
                 editor.setValue(fileContent);
                 addLog(`ファイルを読み込み成功: ${file.name} (${file.type}, ${Math.round(file.size/1024)}KB)`);
-                
-                // Store file metadata
-                window.currentFile = {
-                    name: file.name,
-                    size: file.size,
-                    type: file.type,
-                    lastModified: file.lastModified
-                };
             };
             reader.onerror = (error) => {
                 addLog(`ファイル読み込みエラー: ${error.target.error}`, true);
@@ -602,8 +513,8 @@ class _MyHomePageState extends State<MyHomePage> {
                     break;
             }
             
-            previewCanvas.style.width = width;
-            previewCanvas.style.height = height;
+            flutterApp.style.width = width;
+            flutterApp.style.height = height;
         });
         
         // Initialize preview with default code
@@ -611,8 +522,8 @@ class _MyHomePageState extends State<MyHomePage> {
         
         // Set mobile as default device
         deviceSelector.value = 'mobile';
-        previewCanvas.style.width = '360px';
-        previewCanvas.style.height = '640px';
+        flutterApp.style.width = '360px';
+        flutterApp.style.height = '640px';
     </script>
 </body>
 </html>

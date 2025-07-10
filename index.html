@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flutter Webエミュレーター</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/dart/dart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/edit/matchbrackets.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/edit/closebrackets.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/comment/comment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flutter-webrtc@latest/dist/flutter_webrtc.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #02569B;
+            --secondary-color: #01376B;
+            --accent-color: #2DB7F5;
+            --background-color: #f5f5f5;
+            --editor-bg: #1E1E1E;
+            --editor-text: #D4D4D4;
+        }
+        
+        body {
+            font-family: 'Roboto', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--background-color);
+            color: #333;
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        .header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .editor-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #ddd;
+        }
+        
+        .editor-toolbar {
+            padding: 0.5rem;
+            background-color: var(--secondary-color);
+            color: white;
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .CodeMirror {
+            flex: 1;
+            height: auto !important;
+            font-size: 14px;
+            background-color: var(--editor-bg);
+            color: var(--editor-text);
+        }
+        
+        .preview-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: white;
+        }
+        
+        .preview-header {
+            padding: 0.5rem;
+            background-color: var(--secondary-color);
+            color: white;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .preview-content {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: auto;
+            background-color: #f9f9f9;
+        }
+        
+        .flutter-canvas {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        
+        button {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background-color 0.2s;
+        }
+        
+        button:hover {
+            background-color: var(--primary-color);
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .file-label {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background-color: var(--accent-color);
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        
+        .status-bar {
+            padding: 0.5rem;
+            background-color: var(--secondary-color);
+            color: white;
+            font-size: 0.8rem;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+
+        .log-container {
+            padding: 0.5rem;
+            background-color: #222;
+            color: #fff;
+            font-family: monospace;
+            font-size: 0.8rem;
+            height: 100px;
+            overflow-y: auto;
+            border-top: 1px solid #444;
+        }
+
+        .log-entry {
+            margin-bottom: 0.2rem;
+            padding: 0.2rem 0;
+            border-bottom: 1px solid #333;
+        }
+
+        .log-time {
+            color: #aaa;
+            margin-right: 0.5rem;
+        }
+
+        .log-error {
+            color: #ff5555;
+        }
+        
+        .device-selector {
+            padding: 0.3rem;
+            border-radius: 4px;
+            border: none;
+            background-color: white;
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+            }
+            
+            .editor-container {
+                flex: none;
+                height: 40vh;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">Flutter Webエミュレーター</div>
+            <div>
+                <button id="run-btn">実行</button>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="editor-container">
+                <div class="editor-toolbar">
+                    <label for="file-input" class="file-label">ファイルを開く</label>
+                    <input type="file" id="file-input" class="file-input" accept=".dart,.txt" />
+                    <button id="new-btn">新規</button>
+                    <button id="save-btn">保存</button>
+                </div>
+                <textarea id="editor">
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Flutter Demo',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+    );
+  }
+}
+
+class MyHomePage extends StatefulWidget {
+  const MyHomePage({super.key, required this.title});
+
+  final String title;
+
+  @override
+  State<MyHomePage> createState() => _MyHomePageState();
+}
+
+class _MyHomePageState extends State<MyHomePage> {
+  int _counter = 0;
+
+  void _incrementCounter() {
+    setState(() {
+      _counter++;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.title),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            const Text(
+              'You have pushed the button this many times:',
+            ),
+            Text(
+              '$_counter',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _incrementCounter,
+        tooltip: 'Increment',
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}</textarea>
+            </div>
+            
+            <div class="preview-container">
+                <div class="preview-header">
+                    <span>プレビュー</span>
+                    <select id="device-selector" class="device-selector">
+                        <option value="mobile">モバイル</option>
+                        <option value="tablet">タブレット</option>
+                        <option value="desktop">デスクトップ</option>
+                    </select>
+                </div>
+                <div class="preview-content">
+                    <iframe id="flutter-canvas" class="flutter-canvas" frameborder="0"></iframe>
+                </div>
+                <div class="log-container" id="log-container"></div>
+                <div class="status-bar" id="status-bar">
+                    準備完了
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize CodeMirror editor
+        const editor = CodeMirror.fromTextArea(document.getElementById('editor'), {
+            mode: 'dart',
+            lineNumbers: true,
+            theme: 'default',
+            indentUnit: 2,
+            tabSize: 2,
+            lineWrapping: true,
+            matchBrackets: true,
+            autoCloseBrackets: true,
+            extraKeys: {
+                'Ctrl-/': 'toggleComment',
+                'Cmd-/': 'toggleComment'
+            }
+        });
+        
+        // Elements
+        const runBtn = document.getElementById('run-btn');
+        const newBtn = document.getElementById('new-btn');
+        const saveBtn = document.getElementById('save-btn');
+        const fileInput = document.getElementById('file-input');
+        const previewCanvas = document.getElementById('flutter-canvas');
+        const deviceSelector = document.getElementById('device-selector');
+        const statusBar = document.querySelector('.status-bar');
+        
+        // Default Flutter code
+        const defaultFlutterCode = `import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Flutter Demo',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+    );
+  }
+}
+
+class MyHomePage extends StatefulWidget {
+  const MyHomePage({super.key, required this.title});
+
+  final String title;
+
+  @override
+  State<MyHomePage> createState() => _MyHomePageState();
+}
+
+class _MyHomePageState extends State<MyHomePage> {
+  int _counter = 0;
+
+  void _incrementCounter() {
+    setState(() {
+      _counter++;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.title),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            const Text(
+              'You have pushed the button this many times:',
+            ),
+            Text(
+              '$_counter',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _incrementCounter,
+        tooltip: 'Increment',
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}`;
+        
+        // Enhanced logging function
+        function addLog(message, isError = false) {
+            const logContainer = document.getElementById('log-container');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${isError ? 'log-error' : ''}`;
+            
+            const time = new Date().toLocaleTimeString();
+            const logId = Date.now();
+            logEntry.innerHTML = `
+                <span class="log-time">${time}</span>
+                <span data-logid="${logId}">${message}</span>
+            `;
+            
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+            
+            // Persist logs for session
+            if (!window.sessionLogs) {
+                window.sessionLogs = [];
+            }
+            window.sessionLogs.push({
+                id: logId,
+                time: time,
+                message: message,
+                error: isError
+            });
+            
+            return logId;
+        }
+
+        // Function to update preview frame
+        function updatePreview(code) {
+            statusBar.textContent = 'コンパイル中...';
+            addLog('コードのコンパイルを開始しています');
+            
+            try {
+                const startTime = performance.now();
+                
+                // In a real implementation, we would compile the Dart code to JavaScript
+                // and load it into the iframe. For this demo, we'll simulate the behavior.
+                
+                // Simulate compilation delay
+                setTimeout(() => {
+                    const executionTime = (performance.now() - startTime).toFixed(2);
+                    previewCanvas.srcdoc = `
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <script src="https://cdn.jsdelivr.net/npm/flutter-webrtc@latest/dist/flutter_webrtc.min.js"></script>
+                        <style>
+                            body {
+                                margin: 0;
+                                padding: 0;
+                                display: flex;
+                                justify-content: center;
+                                align-items: center;
+                                height: 100vh;
+                                background-color: #f5f5f5;
+                                font-family: Arial, sans-serif;
+                            }
+                            .flutter-container {
+                                width: 100%;
+                                height: 100%;
+                                overflow: hidden;
+                                background-color: white;
+                                box-shadow: 0 0 10px rgba(0,0,0,0.1);
+                            }
+                            .simulated-app {
+                                width: 100%;
+                                height: 100%;
+                                position: relative;
+                            }
+                            .app-bar {
+                                height: 56px;
+                                background-color: #02569B;
+                                color: white;
+                                display: flex;
+                                align-items: center;
+                                padding: 0 16px;
+                                font-size: 20px;
+                            }
+                            .body {
+                                padding: 16px;
+                                text-align: center;
+                            }
+                            .counter {
+                                font-size: 48px;
+                                margin: 20px 0;
+                                color: #02569B;
+                            }
+                            .fab {
+                                position: absolute;
+                                bottom: 16px;
+                                right: 16px;
+                                width: 56px;
+                                height: 56px;
+                                border-radius: 50%;
+                                background-color: #02569B;
+                                color: white;
+                                display: flex;
+                                justify-content: center;
+                                align-items: center;
+                                font-size: 24px;
+                                cursor: pointer;
+                                box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="flutter-container">
+                            <div class="simulated-app">
+                                <div class="app-bar">Flutter Demo</div>
+                                <div class="body">
+                                    <p>You have pushed the button this many times:</p>
+                                    <div class="counter" id="counter">0</div>
+                                </div>
+                                <div class="fab" id="increment-btn">+</div>
+                            </div>
+                        </div>
+                        <script>
+                            let count = 0;
+                            document.getElementById('increment-btn').addEventListener('click', () => {
+                                count++;
+                                document.getElementById('counter').textContent = count;
+                            });
+                        </script>
+                    </body>
+                    </html>`;
+                    
+                    statusBar.textContent = `実行中 (${executionTime}ms)`;
+                    addLog(`コードの実行に成功しました (${executionTime}ms)`);
+                }, 1000);
+            } catch (error) {
+                statusBar.textContent = `エラー - ${error.message}`;
+                addLog(`エラーが発生しました: ${error.message}`, true);
+            }
+        }
+        
+        // Event listeners
+        runBtn.addEventListener('click', () => {
+            updatePreview(editor.getValue());
+        });
+        
+        newBtn.addEventListener('click', () => {
+            if (confirm('新規ファイルを作成しますか？未保存の変更は失われます。')) {
+                addLog('新しいファイルを作成しました');
+                editor.setValue(defaultFlutterCode);
+            }
+        });
+        
+        saveBtn.addEventListener('click', () => {
+            const code = editor.getValue();
+            const blob = new Blob([code], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'flutter_app.dart';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const fileContent = event.target.result;
+                editor.setValue(fileContent);
+                addLog(`ファイルを読み込み成功: ${file.name} (${file.type}, ${Math.round(file.size/1024)}KB)`);
+                
+                // Store file metadata
+                window.currentFile = {
+                    name: file.name,
+                    size: file.size,
+                    type: file.type,
+                    lastModified: file.lastModified
+                };
+            };
+            reader.onerror = (error) => {
+                addLog(`ファイル読み込みエラー: ${error.target.error}`, true);
+            };
+            reader.readAsText(file);
+        });
+        
+        deviceSelector.addEventListener('change', () => {
+            const device = deviceSelector.value;
+            let width, height;
+            
+            switch (device) {
+                case 'mobile':
+                    width = '360px';
+                    height = '640px';
+                    break;
+                case 'tablet':
+                    width = '600px';
+                    height = '800px';
+                    break;
+                case 'desktop':
+                    width = '100%';
+                    height = '100%';
+                    break;
+            }
+            
+            previewCanvas.style.width = width;
+            previewCanvas.style.height = height;
+        });
+        
+        // Initialize preview with default code
+        updatePreview(editor.getValue());
+        
+        // Set mobile as default device
+        deviceSelector.value = 'mobile';
+        previewCanvas.style.width = '360px';
+        previewCanvas.style.height = '640px';
+    </script>
+</body>
+</html>
